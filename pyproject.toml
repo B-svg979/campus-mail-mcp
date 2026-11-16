@@ -11,7 +11,7 @@ dependencies = [
   "mcp==1.30.0",
   "exchangelib==5.6.0",
   "beautifulsoup4==4.15.0",
-  "pypdf==6.21.4",
+  "pypdf==7.0.1",
   "python-dotenv>=1.2.2,<2",
   "tzdata==2026.6",
 ]

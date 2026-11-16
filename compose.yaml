@@ -1,0 +1,21 @@
+services:
+  mail-mcp:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      CAMPUS_HOST: 0.0.0.0
+      CAMPUS_DATA_DIR: /app/data
+    env_file:
+      - .env
+    volumes:
+      - mail-cache:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  mail-cache:

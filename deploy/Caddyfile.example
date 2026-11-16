@@ -1,0 +1,5 @@
+# Replace the example domain with your reachable domain, then add the exact
+# domain to CAMPUS_ALLOWED_HOSTS. Caddy obtains TLS certificates automatically.
+mail-tools.example.edu {
+    reverse_proxy 127.0.0.1:8765
+}

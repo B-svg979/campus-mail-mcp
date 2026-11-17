@@ -52,6 +52,15 @@ async def check(args):
                 assert status["meta"]["is_demo"] is True
                 version = status["data"].get("tool_version")
                 assert version == args.expect_version, f"Expected {args.expect_version}, got {version}"
+                # First sync is intentionally asynchronous; wait only for synthetic data.
+                for _ in range(100):
+                    if status["data"]["status"] == "READY":
+                        break
+                    assert status["data"]["status"] in {"NOT_SYNCED", "SYNCING"}
+                    await asyncio.sleep(0.05)
+                    status = decode(await session.call_tool("get_mail_status", {}))
+                else:
+                    raise RuntimeError("Synthetic first sync did not complete within five seconds")
                 found = decode(await session.call_tool("search_mail", {"query": "活动"}))
                 mail = decode(await session.call_tool("get_mail", {
                     "mail_id": found["data"]["items"][0]["id"]
@@ -73,6 +82,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--entry", help="Optional extracted platform python/launch.py")
     parser.add_argument("--platform", action="store_true", help="Use the installed platform wheel")
-    parser.add_argument("--expect-version", default="0.1.2")
+    parser.add_argument("--expect-version", default="0.1.3")
     parser.add_argument("--without-system-timezones", action="store_true")
     asyncio.run(check(parser.parse_args()))

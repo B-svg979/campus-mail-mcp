@@ -17,7 +17,7 @@
 
 ## 学校平台接入
 
-使用 Releases 中的 `campus_mail_platform-0.1.2-py3-none-any.whl`，或按下文自行构建。
+使用 Releases 中的 `campus_mail_platform-0.1.3-py3-none-any.whl`，或按下文自行构建。
 
 1. 在自己的空间进入「插件 → 自定义插件 → 接入 MCP 插件」。
 2. 选择 **STDIO / uvx**，通过代码上传按钮上传上述 WHL，保留文件名。
@@ -27,7 +27,7 @@
 --python 3.12 --from {{HIAGENT_PKG_URI}} campus-mail-platform
 ```
 
-4. 保存、同步工具，调试 `get_mail_status`；合成数据应显示 `data.tool_version=0.1.2`、`data.status=READY`、`meta.is_demo=true`。
+4. 保存、同步工具，调试 `get_mail_status`；应显示 `data.tool_version=0.1.3`、`meta.is_demo=true`。首次同步在后台运行，短暂的 `SYNCING` / `NOT_SYNCED` 属正常启动过程；演示数据同步后为 `READY`。
 5. 调试并发布自己的插件，再添加到智能体。智能体提示词可参考 [AGENT_PROMPT.md](AGENT_PROMPT.md)。
 
 这个方式由**学校服务器运行 Python**，使用者电脑只运行浏览器。不需要每位组员在电脑上启动服务；换电脑不能改变学校服务器到邮箱的网络访问权限。学校运行环境仍需能够安装 Python/依赖、访问邮箱端点。界面流程最初验证于 2026-11-10。
@@ -86,11 +86,13 @@ python -m pytest -q
 python -m ruff check src scripts tests platform/src
 python scripts/selftest_stdio.py --without-system-timezones
 python scripts/build_platform.py
-python -m pip install --no-deps dist/campus_mail_platform-0.1.2-py3-none-any.whl
+python -m pip install --no-deps dist/campus_mail_platform-0.1.3-py3-none-any.whl
 python scripts/selftest_stdio.py --platform --without-system-timezones
 ```
 
 构建脚本先从源码生成核心 WHL，再把它及校验值打进学校适配器。仓库不存储生成的 WHL、真实邮件缓存、`.env` 或学校账号关联的智能体导出文件。适配器会校验内嵌核心 WHL 的 SHA-256。
+
+STDIO 初始化不等待真实邮箱首次同步。网络缓慢、认证失败或端口不可达时，状态和网络诊断仍可调用；邮件查询在首次同步完成前返回明确状态，不用空列表冒充同步成功。
 
 ## 数据和功能边界
 

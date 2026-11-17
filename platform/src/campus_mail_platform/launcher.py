@@ -30,7 +30,10 @@ def main():
     for key in tuple(os.environ):
         if key.startswith(("CAMPUS_", "MAIL_")):
             os.environ.pop(key)
-    wheel = Path(__file__).with_name("campus_mail_mcp-0.1.2-py3-none-any.whl")
+    wheels = list(Path(__file__).parent.glob("campus_mail_mcp-*-py3-none-any.whl"))
+    if len(wheels) != 1:
+        raise SystemExit("Tool package must contain exactly one core wheel")
+    wheel = wheels[0]
     expected = Path(__file__).with_name("wheel.sha256").read_text().strip()
     if hashlib.sha256(wheel.read_bytes()).hexdigest() != expected:
         raise SystemExit("Tool package checksum mismatch")

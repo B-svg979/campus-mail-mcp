@@ -1,6 +1,7 @@
 import json
 import os
 import stat
+import threading
 
 from dotenv import dotenv_values
 
@@ -38,3 +39,45 @@ def test_stdio_startup_error_does_not_pollute_protocol(tmp_path, capsys, monkeyp
     captured = capsys.readouterr()
     assert captured.out == ""
     assert json.loads(captured.err)["error"]["code"] == "CONFIG_ERROR"
+
+
+def test_stdio_initializes_and_reports_syncing_while_first_collection_is_blocked(
+    tmp_path, capsys, monkeypatch
+):
+    from campus_mail_mcp import providers, server
+
+    started, release, finished = threading.Event(), threading.Event(), threading.Event()
+    for name in ("MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_ADDRESS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CAMPUS_MODE", "demo")
+    monkeypatch.setenv("CAMPUS_DATA_DIR", str(tmp_path / "data"))
+
+    def slow_collect(settings):
+        started.set()
+        if not release.wait(5):
+            raise TimeoutError("first collection still blocked")
+        try:
+            return providers.demo_snapshot(settings)
+        finally:
+            finished.set()
+
+    class Server:
+        def __init__(self, service):
+            self.service = service
+
+        def run(self, transport):
+            assert transport == "stdio"
+            assert started.wait(1)
+            assert not finished.is_set()
+            assert self.service.get_mail_status()["data"]["status"] == "SYNCING"
+            release.set()
+
+    monkeypatch.setattr(providers, "collect", slow_collect)
+    monkeypatch.setattr(server, "create_mcp", Server)
+    try:
+        assert main(["--env-file", str(tmp_path / "missing.env"),
+                     "serve", "--transport", "stdio"]) == 0
+        assert finished.wait(1)
+        assert capsys.readouterr().out == ""
+    finally:
+        release.set()

@@ -147,20 +147,24 @@ def main(argv=None):
         from .server import create_app, create_mcp
 
         if args.transport == "stdio":
-            # STDIO is a local process transport; sync stays outside the tool API.
-            # Initial sync runs here, then periodic sync runs on a daemon worker.
+            # A slow mailbox must not prevent MCP initialization/status/diagnostics.
+            # Both first and subsequent syncs run outside the protocol event loop.
             import threading
-            import time
 
-            service.sync()
+            stop = threading.Event()
 
             def periodic():
-                while True:
-                    time.sleep(settings.sync_seconds)
+                while not stop.is_set():
                     service.sync()
+                    stop.wait(settings.sync_seconds)
 
-            threading.Thread(target=periodic, daemon=True).start()
-            create_mcp(service).run(transport="stdio")
+            worker = threading.Thread(target=periodic, daemon=True)
+            worker.start()
+            try:
+                create_mcp(service).run(transport="stdio")
+            finally:
+                stop.set()
+                worker.join(timeout=1)
         else:
             import uvicorn
 

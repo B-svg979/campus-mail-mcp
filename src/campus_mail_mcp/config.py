@@ -52,6 +52,7 @@ class Settings:
     imap_host: str = "mail.xjtlu.edu.cn"
     imap_port: int = 993
     imap_security: str = "ssl"
+    imap_proxy_mode: str = "direct"
     imap_folder: str = "INBOX"
     imap_auth: str = "password"
     imap_access_token: str = ""
@@ -101,6 +102,7 @@ class Settings:
             imap_host=val("MAIL_IMAP_HOST", cls.imap_host),
             imap_port=integer("MAIL_IMAP_PORT", 993, 1, 65535),
             imap_security=val("MAIL_IMAP_SECURITY", "ssl"),
+            imap_proxy_mode=val("MAIL_IMAP_PROXY_MODE", "direct").lower(),
             imap_folder=val("MAIL_IMAP_FOLDER", "INBOX"),
             imap_auth=val("MAIL_IMAP_AUTH", "password"),
             imap_access_token=val("MAIL_IMAP_ACCESS_TOKEN"),
@@ -122,6 +124,8 @@ class Settings:
             raise MailError("CONFIG_ERROR", "EWS 必须使用不含凭据的 HTTPS 地址。")
         if self.imap_security not in {"ssl", "starttls"}:
             raise MailError("CONFIG_ERROR", "IMAP 只支持 ssl 或 starttls。")
+        if self.imap_proxy_mode not in {"direct", "environment"}:
+            raise MailError("CONFIG_ERROR", "MAIL_IMAP_PROXY_MODE 只能是 direct 或 environment。")
         if self.imap_auth not in {"password", "xoauth2"}:
             raise MailError("CONFIG_ERROR", "MAIL_IMAP_AUTH 必须是 password 或 xoauth2。")
         if any(c in self.imap_folder for c in ("\r", "\n", '"', "\\")):

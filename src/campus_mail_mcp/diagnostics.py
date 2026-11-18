@@ -2,18 +2,120 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import http.client
 import imaplib
 import json
 import platform
+import re
 import socket
 import ssl
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
+from urllib.request import getproxies, proxy_bypass
+
+
+class ProxyError(OSError):
+    """Safe proxy failure; never include a proxy URL, headers or remote error text."""
+
+    def __init__(self, code, message, details=None):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.details = details or {"stage": "PROXY_CONNECT"}
+
+
+def imap_proxy(host, port, mode="direct"):
+    if mode == "direct":
+        return None
+    if mode != "environment":
+        raise ProxyError("CONFIG_ERROR", "IMAP 代理模式只能是 direct 或 environment。")
+    proxies = getproxies()
+    value = proxies.get("https") or proxies.get("http") or proxies.get("all")
+    target = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    if not value or proxy_bypass(target):
+        return None
+    try:
+        proxy = urlsplit(value if "://" in value else "http://" + value)
+        valid = (
+            proxy.scheme == "http" and proxy.hostname
+            and proxy.path in ("", "/") and not proxy.query and not proxy.fragment
+            and 1 <= (proxy.port or 80) <= 65535
+        )
+        if not valid:
+            raise ValueError()
+    except ValueError:
+        raise ProxyError(
+            "PROXY_CONFIG_ERROR", "当前 IMAP 连接支持已有 HTTP CONNECT 代理；请核对代理配置。"
+        ) from None
+    return proxy
+
+
+def open_imap_socket(host, port, timeout, proxy=None):
+    """Return a raw socket via the selected route. Never retry a denied proxy directly."""
+    if proxy is None:
+        return socket.create_connection((host, port), timeout=timeout)
+    connection = http.client.HTTPConnection(proxy.hostname, proxy.port or 80, timeout=timeout)
+    headers = {}
+    if proxy.username is not None:
+        credentials = unquote(proxy.username) + ":" + unquote(proxy.password or "")
+        headers["Proxy-Authorization"] = "Basic " + base64.b64encode(
+            credentials.encode()
+        ).decode("ascii")
+    try:
+        connection.set_tunnel(host, port, headers=headers)
+        connection.connect()
+        raw = connection.sock
+        connection.sock = None  # Ownership moves to the caller/IMAP client.
+        return raw
+    except OSError as exc:
+        status = re.search(r"Tunnel connection failed: (\d{3})\b", str(exc))
+        if status:
+            number = int(status.group(1))
+            code = {403: "PROXY_FORBIDDEN", 407: "PROXY_AUTH_REQUIRED"}.get(
+                number, "PROXY_CONNECTION_FAILED"
+            )
+            raise ProxyError(
+                code, "运行环境的代理未允许建立邮箱连接；请检查平台代理权限。",
+                {"stage": "PROXY_CONNECT", "http_status": number},
+            ) from None
+        error = network_error(exc, "PROXY_CONNECT")
+        raise ProxyError(error["code"], error["message"], error["details"]) from None
+    except http.client.HTTPException:
+        raise ProxyError("PROXY_CONNECTION_FAILED", "运行环境的代理响应无效。") from None
+    finally:
+        connection.close()
+
+
+class ProxiedIMAP4(imaplib.IMAP4):
+    def __init__(self, host, port, *, proxy, timeout):
+        self._mail_proxy = proxy
+        super().__init__(host, port, timeout=timeout)
+
+    def _create_socket(self, timeout):
+        return open_imap_socket(self.host, self.port, timeout, self._mail_proxy)
+
+
+class ProxiedIMAP4SSL(imaplib.IMAP4_SSL):
+    def __init__(self, host, port, *, proxy, ssl_context, timeout):
+        self._mail_proxy = proxy
+        super().__init__(host, port, ssl_context=ssl_context, timeout=timeout)
+
+    def _create_socket(self, timeout):
+        raw = open_imap_socket(self.host, self.port, timeout, self._mail_proxy)
+        try:
+            return self.ssl_context.wrap_socket(raw, server_hostname=self.host)
+        except BaseException:
+            raw.close()
+            raise
 
 
 def network_error(exc: Exception, stage: str = "connection") -> dict:
     """Classify errors without returning exception text, usernames or credentials."""
+    if isinstance(exc, ProxyError):
+        return {"code": exc.code, "message": exc.message, "details": exc.details}
     if isinstance(exc, socket.gaierror):
         code, message = "DNS_ERROR", "运行环境无法解析邮箱域名。"
     elif isinstance(exc, ssl.SSLCertVerificationError):
@@ -40,7 +142,7 @@ def network_error(exc: Exception, stage: str = "connection") -> dict:
 
 def diagnose_imap_connection(
     host: str = "mail.xjtlu.edu.cn", port: int = 993,
-    security: str = "ssl", timeout: float = 5,
+    security: str = "ssl", timeout: float = 5, proxy_mode: str = "direct",
 ) -> dict:
     """Check the caller's runtime, never authenticate or read mailbox contents."""
     timeout = max(1, min(float(timeout), 10))
@@ -55,15 +157,23 @@ def diagnose_imap_connection(
         "message_bodies_read": False,
         "checks": {"dns": False, "tcp": False, "tls": False, "imap": False},
         "note": "通过仅证明网络和 IMAP 服务可达；不证明账号认证或同步成功。",
+        "proxy_mode": proxy_mode,
     }
     stage = "DNS_LOOKUP"
     try:
-        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-        result["checks"]["dns"] = True
+        proxy = imap_proxy(host, port, proxy_mode)
+        result["connection_route"] = "configured_http_proxy" if proxy else "direct"
+        try:
+            socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+            result["checks"]["dns"] = True
+        except socket.gaierror:
+            if proxy is None:
+                raise
+            result["dns_resolution"] = "delegated_to_proxy"
         context = ssl.create_default_context()
         if security == "ssl":
-            stage = "TCP_CONNECT"
-            with socket.create_connection((host, port), timeout=timeout) as raw:
+            stage = "PROXY_CONNECT" if proxy else "TCP_CONNECT"
+            with open_imap_socket(host, port, timeout, proxy) as raw:
                 result["checks"]["tcp"] = True
                 stage = "TLS_HANDSHAKE"
                 with context.wrap_socket(raw, server_hostname=host) as secure:
@@ -81,7 +191,10 @@ def diagnose_imap_connection(
                     result["checks"]["imap"] = True
         elif security == "starttls":
             stage = "IMAP_CONNECT"
-            client = imaplib.IMAP4(host, port, timeout=timeout)
+            client = (
+                ProxiedIMAP4(host, port, proxy=proxy, timeout=timeout)
+                if proxy else imaplib.IMAP4(host, port, timeout=timeout)
+            )
             try:
                 result["checks"]["tcp"] = True
                 result["checks"]["imap"] = True
@@ -108,9 +221,10 @@ def diagnose_imap_connection(
 def main(argv=None):
     parser = argparse.ArgumentParser(description="IMAP 网络诊断：不登录、不读取邮件、不需要密码")
     parser.add_argument("--timeout", type=float, default=5)
+    parser.add_argument("--proxy-mode", choices=["direct", "environment"], default="direct")
     parser.add_argument("--output", default="imap-diagnostic-report.json")
     args = parser.parse_args(argv)
-    report = diagnose_imap_connection(timeout=args.timeout)
+    report = diagnose_imap_connection(timeout=args.timeout, proxy_mode=args.proxy_mode)
     text = json.dumps(report, ensure_ascii=False, indent=2)
     print(text)
     try:

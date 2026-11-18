@@ -164,6 +164,7 @@ class MailService:
             data["connection_diagnostics"] = diagnose_imap_connection(
                 self.settings.imap_host, self.settings.imap_port,
                 self.settings.imap_security, min(self.settings.timeout_seconds, 10),
+                self.settings.imap_proxy_mode,
             )
         return self.envelope(data, state)
 

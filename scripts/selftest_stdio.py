@@ -82,6 +82,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--entry", help="Optional extracted platform python/launch.py")
     parser.add_argument("--platform", action="store_true", help="Use the installed platform wheel")
-    parser.add_argument("--expect-version", default="0.1.3")
+    parser.add_argument("--expect-version", default="0.1.4")
     parser.add_argument("--without-system-timezones", action="store_true")
     asyncio.run(check(parser.parse_args()))

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "campus-mail-mcp"
-version = "0.1.3"
+version = "0.1.4"
 description = "Read-only campus email MCP with STDIO, authenticated HTTP and network diagnostics"
 requires-python = ">=3.11"
 dependencies = [
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9,<10", "httpx>=0.28,<1", "ruff>=0.17,<1"]
+dev = ["pytest>=9,<10", "httpx>=0.28,<1", "ruff>=0.17,<1", "cryptography>=43"]
 
 [project.scripts]
 campus-mail = "campus_mail_mcp.cli:main"

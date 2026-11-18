@@ -95,7 +95,7 @@ def test_status_diagnosis_is_opt_in_and_independent_of_mailbox_credentials(tmp_p
     status = service.get_mail_status(diagnose_connection=True)
     assert status["data"]["status"] == "AUTH_REQUIRED"
     assert status["data"]["connection_diagnostics"]["ok"]
-    assert calls == [("mail.xjtlu.edu.cn", 993, "ssl", 10)]
+    assert calls == [("mail.xjtlu.edu.cn", 993, "ssl", 10, "direct")]
 
 
 def test_sync_keeps_safe_system_error_details(tmp_path):

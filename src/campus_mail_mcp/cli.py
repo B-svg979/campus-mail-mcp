@@ -53,6 +53,7 @@ def initialize(path: Path, mode: str):
             "MAIL_IMAP_HOST": "mail.xjtlu.edu.cn",
             "MAIL_IMAP_PORT": "993",
             "MAIL_IMAP_SECURITY": "ssl",
+            "MAIL_IMAP_PROXY_MODE": "direct",
             "MAIL_IMAP_FOLDER": "INBOX",
             "MAIL_IMAP_AUTH": "password",
             "MAIL_IMAP_ACCESS_TOKEN": "",

@@ -2,7 +2,7 @@
 
 校园邮箱的单邮箱、只读 MCP 工具，供智能体搜索邮件、读取正文和提取附件文字。工具本身不调用大模型；摘要、分类和待办判断由接入它的智能体完成。
 
-**状态：课程项目 / 预览版。** 合成数据的完整 MCP 调用链已验证；一个学校账号曾在本地通过 IMAP 认证。学校平台托管环境的真实邮箱同步仍待验收。2026-11-16 收到平台运行时 `CONNECTION_FAILED` 的反馈，本版提供运行环境内的网络诊断，不能把演示成功解释为任意账号均已接通。
+**状态：课程项目 / 预览版。** 合成数据的完整 MCP 调用链已验证；一个学校账号曾在本地通过 IMAP 认证。2026-11-18 已在学校运行环境验证：直接 TCP 连接被拒绝，学校配置的 HTTP 代理可以通过 CONNECT 建立经证书校验的 IMAP TLS 连接。本版让学校适配器使用该代理。学校环境的真实邮箱同步仍待本人授权后验收，网络诊断通过不代表账号已接通。
 
 ## 工具
 
@@ -17,17 +17,19 @@
 
 ## 学校平台接入
 
-使用 Releases 中的 `campus_mail_platform-0.1.3-py3-none-any.whl`，或按下文自行构建。
+使用 Releases 中的 `campus_mail_platform-0.1.4-py3-none-any.whl`，或按下文自行构建。
+
+给组员的完整接入与个人授权步骤见 [单独接入说明](docs/SCHOOL_SETUP.md)。
 
 1. 在自己的空间进入「插件 → 自定义插件 → 接入 MCP 插件」。
 2. 选择 **STDIO / uvx**，通过代码上传按钮上传上述 WHL，保留文件名。
-3. 命令参数填写：
+3. 使用命令编辑器的「插入环境变量」插入 `HIAGENT_PKG_URI`，再补全前后参数，使其显示为：
 
 ```text
 --python 3.12 --from {{HIAGENT_PKG_URI}} campus-mail-platform
 ```
 
-4. 保存、同步工具，调试 `get_mail_status`；应显示 `data.tool_version=0.1.3`、`meta.is_demo=true`。首次同步在后台运行，短暂的 `SYNCING` / `NOT_SYNCED` 属正常启动过程；演示数据同步后为 `READY`。
+4. 按下表定义 String 环境变量，开启各字段、关闭「必填」；用户名和密码勾选「敏感字段」，默认留空。保存、同步工具，调试 `get_mail_status`；应显示 `data.tool_version=0.1.4`、`meta.is_demo=true`。首次同步在后台运行，短暂的 `SYNCING` / `NOT_SYNCED` 属正常启动过程；演示数据同步后为 `READY`。
 5. 调试并发布自己的插件，再添加到智能体。智能体提示词可参考 [AGENT_PROMPT.md](AGENT_PROMPT.md)。
 
 这个方式由**学校服务器运行 Python**，使用者电脑只运行浏览器。不需要每位组员在电脑上启动服务；换电脑不能改变学校服务器到邮箱的网络访问权限。学校运行环境仍需能够安装 Python/依赖、访问邮箱端点。界面流程最初验证于 2026-11-10。
@@ -44,6 +46,8 @@
 
 适配器固定连接 `mail.xjtlu.edu.cn:993`，开启 TLS 证书校验，只读 `INBOX`。每个实例只对应一个邮箱。没有凭据时返回 `AUTH_REQUIRED`；不会用演示邮件冒充真实邮件。
 
+学校适配器自动使用运行环境已有的 HTTP CONNECT 代理（`HTTPS_PROXY` / `HTTP_PROXY`），尊重 `NO_PROXY`。代理只负责转发到邮箱的 TCP 连接，邮箱 TLS 的证书和主机名仍须验证。代理拒绝时返回 `PROXY_FORBIDDEN` 等明确错误，不改走直连；没有配置代理时使用直连。无需新增中转服务或让使用者电脑持续开机。
+
 ## 网络故障诊断
 
 在**实际运行工具的环境**中调用：
@@ -53,6 +57,8 @@
 ```
 
 查看 `data.connection_diagnostics` 中的 `checks` 和 `error.details.stage`。此测试不登录邮箱、不读取邮件、不接收账号密码。诊断 `ok=true` 只表示网络/服务可达，真实接通仍需 `data.status=READY`、`meta.is_demo=false` 和成功的同步时间。
+
+`connection_route=configured_http_proxy` 表示实际使用了运行环境的代理；诊断与采集使用相同的代理选择规则。单独部署核心时默认直连，需使用已有 HTTP 代理时设置 `MAIL_IMAP_PROXY_MODE=environment`，不在工具参数中提供代理 URL 或密码。
 
 若工具是在本机运行，还可使用零第三方依赖的脚本：
 
@@ -86,7 +92,7 @@ python -m pytest -q
 python -m ruff check src scripts tests platform/src
 python scripts/selftest_stdio.py --without-system-timezones
 python scripts/build_platform.py
-python -m pip install --no-deps dist/campus_mail_platform-0.1.3-py3-none-any.whl
+python -m pip install --no-deps dist/campus_mail_platform-0.1.4-py3-none-any.whl
 python scripts/selftest_stdio.py --platform --without-system-timezones
 ```
 

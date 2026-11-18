@@ -18,6 +18,7 @@ from .content import (
     parse_mime,
     utc_text,
 )
+from .diagnostics import ProxiedIMAP4, ProxiedIMAP4SSL, imap_proxy
 
 
 def bounds(settings: Settings):
@@ -76,19 +77,25 @@ def demo_snapshot(settings: Settings) -> Snapshot:
 
 def _imap(settings: Settings):
     context = ssl.create_default_context()
+    proxy = imap_proxy(settings.imap_host, settings.imap_port, settings.imap_proxy_mode)
     if settings.imap_security == "ssl":
-        client = imaplib.IMAP4_SSL(
+        client_class = ProxiedIMAP4SSL if proxy else imaplib.IMAP4_SSL
+        client = client_class(
             settings.imap_host,
             settings.imap_port,
             ssl_context=context,
             timeout=settings.timeout_seconds,
+            **({"proxy": proxy} if proxy else {}),
         )
     else:
-        client = imaplib.IMAP4(
-            settings.imap_host, settings.imap_port, timeout=settings.timeout_seconds
+        client_class = ProxiedIMAP4 if proxy else imaplib.IMAP4
+        client = client_class(
+            settings.imap_host, settings.imap_port, timeout=settings.timeout_seconds,
+            **({"proxy": proxy} if proxy else {}),
         )
-        client.starttls(ssl_context=context)
     try:
+        if settings.imap_security == "starttls":
+            client.starttls(ssl_context=context)
         if settings.imap_auth == "xoauth2":
             auth = f"user={settings.username}\x01auth=Bearer {settings.imap_access_token}\x01\x01".encode()
             client.authenticate("XOAUTH2", lambda _: auth)

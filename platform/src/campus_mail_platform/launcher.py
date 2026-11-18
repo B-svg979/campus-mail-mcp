@@ -18,6 +18,7 @@ def main():
         "MAIL_IMAP_HOST": "mail.xjtlu.edu.cn",
         "MAIL_IMAP_PORT": "993",
         "MAIL_IMAP_SECURITY": "ssl",
+        "MAIL_IMAP_PROXY_MODE": "environment",
         "MAIL_IMAP_AUTH": "password",
         "MAIL_IMAP_FOLDER": "INBOX",
         "CAMPUS_LOOKBACK_DAYS": os.environ.get("XIPU_MAIL_DAYS") or "7",

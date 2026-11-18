@@ -2,7 +2,7 @@
 
 校园邮箱的单邮箱、只读 MCP 工具，供智能体搜索邮件、读取正文和提取附件文字。工具本身不调用大模型；摘要、分类和待办判断由接入它的智能体完成。
 
-**状态：课程项目 / 预览版。** 合成数据的完整 MCP 调用链已验证；一个学校账号曾在本地通过 IMAP 认证。2026-11-18 已在学校运行环境验证：直接 TCP 连接被拒绝，学校配置的 HTTP 代理可以通过 CONNECT 建立经证书校验的 IMAP TLS 连接。本版让学校适配器使用该代理。学校环境的真实邮箱同步仍待本人授权后验收，网络诊断通过不代表账号已接通。
+**状态：课程项目 / 预览版。** 2026-11-18 已在学校托管环境，对一个本人授权的学校邮箱完成 IMAP 同步、搜索、正文读取和 PDF 文字提取验证。学校适配器使用环境已有的 HTTP 代理，并在首次工具查询中有界等待同步完成。其他账号仍须本人授权并验证；不把单个账号通过解释为所有账号均已接通。
 
 ## 工具
 
@@ -17,7 +17,7 @@
 
 ## 学校平台接入
 
-使用 Releases 中的 `campus_mail_platform-0.1.4-py3-none-any.whl`，或按下文自行构建。
+使用 Releases 中的 `campus_mail_platform-0.1.5-py3-none-any.whl`，或按下文自行构建。
 
 给组员的完整接入与个人授权步骤见 [单独接入说明](docs/SCHOOL_SETUP.md)。
 
@@ -29,7 +29,7 @@
 --python 3.12 --from {{HIAGENT_PKG_URI}} campus-mail-platform
 ```
 
-4. 按下表定义 String 环境变量，开启各字段、关闭「必填」；用户名和密码勾选「敏感字段」，默认留空。保存、同步工具，调试 `get_mail_status`；应显示 `data.tool_version=0.1.4`、`meta.is_demo=true`。首次同步在后台运行，短暂的 `SYNCING` / `NOT_SYNCED` 属正常启动过程；演示数据同步后为 `READY`。
+4. 按下表定义 String 环境变量，开启各字段、关闭「必填」；用户名和密码勾选「敏感字段」，默认留空。保存、同步工具，调试 `get_mail_status`；应显示 `data.tool_version=0.1.5`、`meta.is_demo=true`。首次同步在后台启动，学校版的首次工具调用会等待最多 60 秒取得同步结果；到时仍未完成会明确返回 `SYNCING` / `NOT_SYNCED`。
 5. 调试并发布自己的插件，再添加到智能体。智能体提示词可参考 [AGENT_PROMPT.md](AGENT_PROMPT.md)。
 
 这个方式由**学校服务器运行 Python**，使用者电脑只运行浏览器。不需要每位组员在电脑上启动服务；换电脑不能改变学校服务器到邮箱的网络访问权限。学校运行环境仍需能够安装 Python/依赖、访问邮箱端点。界面流程最初验证于 2026-11-10。
@@ -43,6 +43,8 @@
 | `XIPU_MAIL_PASSWORD` | 空 | 本人邮箱密码 |
 | `XIPU_MAIL_DAYS` | `7` | 首次保留 `7` |
 | `XIPU_MAIL_LIMIT` | `50` | 首次建议 `5` |
+
+在智能体「编排 → 插件 ＋ → 自定义插件」找到该 MCP，点击「设置授权」保存个人配置；然后点击「调试与预览」旁的刷新，开启新调试会话。插件开发页的「同步工具设置」只用于发现和调试工具，不替代智能体个人授权；仅刷新网页也可能继续使用旧会话。完整步骤见 [单独接入说明](docs/SCHOOL_SETUP.md)。
 
 适配器固定连接 `mail.xjtlu.edu.cn:993`，开启 TLS 证书校验，只读 `INBOX`。每个实例只对应一个邮箱。没有凭据时返回 `AUTH_REQUIRED`；不会用演示邮件冒充真实邮件。
 
@@ -92,13 +94,13 @@ python -m pytest -q
 python -m ruff check src scripts tests platform/src
 python scripts/selftest_stdio.py --without-system-timezones
 python scripts/build_platform.py
-python -m pip install --no-deps dist/campus_mail_platform-0.1.4-py3-none-any.whl
+python -m pip install --no-deps dist/campus_mail_platform-0.1.5-py3-none-any.whl
 python scripts/selftest_stdio.py --platform --without-system-timezones
 ```
 
 构建脚本先从源码生成核心 WHL，再把它及校验值打进学校适配器。仓库不存储生成的 WHL、真实邮件缓存、`.env` 或学校账号关联的智能体导出文件。适配器会校验内嵌核心 WHL 的 SHA-256。
 
-STDIO 初始化不等待真实邮箱首次同步。网络缓慢、认证失败或端口不可达时，状态和网络诊断仍可调用；邮件查询在首次同步完成前返回明确状态，不用空列表冒充同步成功。
+STDIO 初始化和工具发现不等待真实邮箱同步。v0.1.5 学校版会在首次工具查询中等待最多 60 秒，使按调用回收进程的平台也有机会完成首次采集；已有成功缓存时查询不等待刷新。认证或采集失败会返回实际错误，超时未完成会明确说明，均不把未同步当作空邮箱。独立核心默认立即返回状态，需要同样行为时设置 `CAMPUS_INITIAL_SYNC_WAIT_SECONDS`（0–120）。
 
 ## 数据和功能边界
 

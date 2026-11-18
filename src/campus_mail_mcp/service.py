@@ -76,10 +76,12 @@ class MailService:
         self.store = Store(settings)
         self.collector = collector or providers.collect
         self.sync_lock = threading.Lock()
+        self.sync_finished = threading.Event()
 
     def sync(self):
         if not self.sync_lock.acquire(blocking=False):
             return {"ok": False, "error": {"code": "SYNC_BUSY", "message": "同步正在进行。"}}
+        self.sync_finished.clear()
         try:
             self.store.begin_sync()
             try:
@@ -91,7 +93,21 @@ class MailService:
                 self.store.fail_sync(error)
                 return {"ok": False, "error": error.as_dict()}
         finally:
+            self.sync_finished.set()
             self.sync_lock.release()
+
+    def query_state(self):
+        state = self.store.state()
+        if (
+            not state["last_success_at"]
+            and self.settings.initial_sync_wait_seconds
+            and self.sync_lock.locked()
+        ):
+            # Some hosts close STDIO after each tool invocation. Keep the first
+            # query alive until collection finishes, while initialize stays fast.
+            self.sync_finished.wait(self.settings.initial_sync_wait_seconds)
+            state = self.store.state()
+        return state
 
     def meta(self, state=None):
         state = state or self.store.state()
@@ -131,14 +147,14 @@ class MailService:
         }
 
     def ready(self):
-        state = self.store.state()
+        state = self.query_state()
         if not state["last_success_at"]:
             if state["error"]:
                 raise MailError(state["error"]["code"], state["error"]["message"])
             raise MailError("NOT_SYNCED", "尚未完成首次同步，请查看 get_mail_status。")
 
     def get_mail_status(self, diagnose_connection=False):
-        state = self.store.state()
+        state = self.query_state()
         status = (
             "SYNCING"
             if state["syncing"]
@@ -157,6 +173,7 @@ class MailService:
                 "syncing": state["syncing"],
                 "last_attempt_at": state["last_attempt_at"],
                 "sync_interval_seconds": self.settings.sync_seconds,
+                "initial_sync_wait_seconds": self.settings.initial_sync_wait_seconds,
                 "attachment_formats": ["txt", "csv", "md", "json", "html", "pdf", "docx"],
                 "note": "时间筛选依据接收时间；EML 模式使用发件人 Date 头。附件不参与正文关键词搜索。",
             }

@@ -43,6 +43,7 @@ def initialize(path: Path, mode: str):
             "CAMPUS_ALLOWED_ORIGINS": "",
             "CAMPUS_TIMEZONE": "Asia/Shanghai",
             "CAMPUS_SYNC_SECONDS": "900",
+            "CAMPUS_INITIAL_SYNC_WAIT_SECONDS": "0",
             "CAMPUS_LOOKBACK_DAYS": "30",
             "CAMPUS_MAX_MESSAGES": "200",
             "MAIL_EWS_URL": "https://mail.xjtlu.edu.cn/EWS/Exchange.asmx",

@@ -1,3 +1,3 @@
 """School mail MCP. Each instance serves exactly one configured mailbox."""
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"

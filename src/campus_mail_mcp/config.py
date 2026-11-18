@@ -37,6 +37,7 @@ class Settings:
     allowed_origins: tuple[str, ...] = ()
     timezone: str = "Asia/Shanghai"
     sync_seconds: int = 900
+    initial_sync_wait_seconds: int = 0
     lookback_days: int = 30
     max_messages: int = 200
     timeout_seconds: int = 20
@@ -87,6 +88,7 @@ class Settings:
             allowed_origins=items("CAMPUS_ALLOWED_ORIGINS"),
             timezone=val("CAMPUS_TIMEZONE", "Asia/Shanghai"),
             sync_seconds=integer("CAMPUS_SYNC_SECONDS", 900, 60, 86400),
+            initial_sync_wait_seconds=integer("CAMPUS_INITIAL_SYNC_WAIT_SECONDS", 0, 0, 120),
             lookback_days=integer("CAMPUS_LOOKBACK_DAYS", 30, 1, 365),
             max_messages=integer("CAMPUS_MAX_MESSAGES", 200, 1, 2000),
             timeout_seconds=integer("CAMPUS_TIMEOUT_SECONDS", 20, 3, 120),

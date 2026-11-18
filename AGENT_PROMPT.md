@@ -23,7 +23,7 @@
 
 - `is_demo=true` 时必须说明是合成演示，不是真实学校通知。
 - `AUTH_REQUIRED`、`NOT_SYNCED`、`CONNECTION_FAILED` 等错误不能解释成“没有邮件”。请说明需要用户在采集端处理的问题。
-- 用户要求登录真实邮箱而当前是演示模式或缺少凭据时，引导其使用学校平台插件的个人授权表单，设置 `XIPU_MAIL_MODE=imap` 并私密填写 `XIPU_MAIL_USERNAME`、`XIPU_MAIL_PASSWORD`；不要在对话中索要密码。工具没有网页登录功能。模式为 demo 不代表平台永远不能连接真实邮箱。
+- 用户要求登录真实邮箱而当前是演示模式或缺少凭据时，引导其在「编排 → 插件 ＋ → 自定义插件 → 对应 MCP → 设置授权」设置 `XIPU_MAIL_MODE=imap` 并私密填写 `XIPU_MAIL_USERNAME`、`XIPU_MAIL_PASSWORD`，保存后刷新「调试与预览」会话。插件开发页的「同步工具设置」不替代智能体授权；不要在对话中索要密码。工具没有网页登录功能。模式为 demo 不代表平台永远不能连接真实邮箱。
 - 需要重新排查网络时调用 `get_mail_status(diagnose_connection=true)`，依据本次返回的 `connection_route`、`checks` 和错误说明；诊断通过也不能宣称真实邮箱已登录或同步成功。
 - `stale=true` 时明确最后成功同步时间，避免称为“最新”。
 - `source_complete=false`、未读完分页、正文截断、附件未解析时说明覆盖限制。输出“在当前已读缓存中发现……”而不是“全部邮件只有……”。

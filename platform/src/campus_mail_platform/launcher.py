@@ -24,6 +24,7 @@ def main():
         "CAMPUS_LOOKBACK_DAYS": os.environ.get("XIPU_MAIL_DAYS") or "7",
         "CAMPUS_MAX_MESSAGES": os.environ.get("XIPU_MAIL_LIMIT") or "50",
         "CAMPUS_SYNC_SECONDS": "900",
+        "CAMPUS_INITIAL_SYNC_WAIT_SECONDS": "60",
         "CAMPUS_TIMEZONE": "Asia/Shanghai",
         "CAMPUS_TOKEN": secrets.token_urlsafe(36),
     }
